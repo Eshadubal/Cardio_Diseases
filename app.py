@@ -36,9 +36,9 @@ st.markdown("""
 
 /* Heartbeat Background Animation (Subtle ECG) */
 @keyframes heartbeat-bg {
-    0% { opacity: 0.12; }
-    50% { opacity: 0.25; }   /* Clearer pulse */
-    100% { opacity: 0.12; }
+    0% { opacity: 0.15; }
+    50% { opacity: 0.35; }   /* Clearer pulse */
+    100% { opacity: 0.15; }
 }
 
 .stApp::before {
@@ -52,7 +52,7 @@ st.markdown("""
     background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="%233498db" stroke-width="1"%3e%3cpath d="M10 50 H20 L25 35 L35 65 L40 50 H50" /%3e%3c/svg%3e');
     background-size: 100px 100px;
     background-repeat: space;
-    opacity: 0.15; /* Increased opacity for better visibility */
+    opacity: 0.15; /* Fallback opacity */
     z-index: 0;
     animation: heartbeat-bg 4s ease-in-out infinite;
     pointer-events: none;
@@ -960,36 +960,94 @@ elif page == "📈 Model Analysis":
             st.write("Evaluating model performance on a subset of data.")
             
             with st.spinner("Generating confusion matrix..."):
-                # Prepare data subset for prediction (to save time)
-                subset = df.sample(n=1000, random_state=42)
-                
-                # Preprocess subset (Simplified version of logic in submit)
-                # Note: This duplicates logic. Ideally, we refactor preprocessing.
-                # For now, we manually map to match model expectation.
-                
-                # Create numeric frame
-                X_subset = subset.copy()
-                
-                # We need to transform X_subset to match feature_columns
-                # This is complex because the original inputs were single values.
-                # To do this correctly without extensive refactoring, we'll skip the exact model prediction
-                # and show the training data distribution instead, OR we make a best effort.
-                
-                # Actually, showing the confusion matrix of the LOADED model on the TRAINING data
-                # is a good way to show 'performance' for this demo.
-                
-                # We need to replicate the exact preprocessing pipeline (scaling/encoding)
-                # But we have 'scaler' and 'feature_columns'.
-                
-                # ... Realization: Doing this correctly requires rebuilding the full pipeline from raw data.
-                # Instead, let's visualize the Target Distribution and Relationship.
-                
-                st.info("Visualizing Class Distribution instead of dynamic prediction to avoid pipeline errors.")
-                
-                fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
-                sns.countplot(x='cardio', data=df, palette='viridis', ax=ax_cm)
-                ax_cm.set_title('Target Class Distribution (0: Healthy, 1: Risk)')
-                st.pyplot(fig_cm)
+                try:
+                    # Prepare data for prediction
+                    # Using a subset for speed, but large enough for meaningful metrics
+                    subset = df.sample(n=3000, random_state=42)
+                    
+                    # Initialize input dataframe with same columns as model features
+                    X_subset = pd.DataFrame(index=subset.index)
+                    
+                    # 1. Age processing (days -> years)
+                    X_subset['age_years'] = subset['age'] / 365.25
+                    
+                    # 2. Copy direct numeric columns
+                    X_subset['height'] = subset['height']
+                    X_subset['weight'] = subset['weight']
+                    X_subset['ap_hi'] = subset['ap_hi']
+                    X_subset['ap_lo'] = subset['ap_lo']
+                    
+                    # 3. Categorical (Ordinal/Binary) - copying distinct integer values
+                    # Assuming dataset encoding matches model training encoding (1,2,3 / 0,1)
+                    X_subset['cholesterol'] = subset['cholesterol']
+                    X_subset['gluc'] = subset['gluc']
+                    X_subset['smoke'] = subset['smoke']
+                    X_subset['alco'] = subset['alco']
+                    X_subset['active'] = subset['active']
+                    
+                    # 4. Gender One-Hot Encoding
+                    # Dataset: 1=Female, 2=Male (Standard Cardio Train Dataset convention)
+                    # We need to match feature_columns which likely has 'gender_Male' and 'gender_Female'
+                    X_subset['gender_Male'] = (subset['gender'] == 2).astype(int)
+                    X_subset['gender_Female'] = (subset['gender'] == 1).astype(int)
+                    
+                    # 5. Scaling
+                    # Ensure we have all columns in correct order before scaling/predicting
+                    # Use globally loaded 'num_cols' for scaling
+                    X_subset[num_cols] = scaler.transform(X_subset[num_cols])
+                    
+                    # Reorder columns to match model expectation exactly
+                    X_subset = X_subset[feature_columns]
+                    
+                    # Predict
+                    y_pred = model.predict(X_subset)
+                    y_true = subset['cardio']
+                    
+                    # Calculate Confusion Matrix
+                    cm = confusion_matrix(y_true, y_pred)
+                    tn, fp, fn, tp = cm.ravel()
+                    
+                    # Display Metrics
+                    st.markdown(f"""
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center; margin-bottom: 20px;">
+                        <div style="background-color: #d4edda; padding: 20px; border-radius: 10px; border: 1px solid #c3e6cb;">
+                            <h3 style="color: #155724; margin: 0;">{tp}</h3>
+                            <p style="color: #155724; margin: 0;">True Positives (TP)</p>
+                            <small>Correctly identified risk</small>
+                        </div>
+                        <div style="background-color: #d4edda; padding: 20px; border-radius: 10px; border: 1px solid #c3e6cb;">
+                            <h3 style="color: #155724; margin: 0;">{tn}</h3>
+                            <p style="color: #155724; margin: 0;">True Negatives (TN)</p>
+                            <small>Correctly identified healthy</small>
+                        </div>
+                        <div style="background-color: #f8d7da; padding: 20px; border-radius: 10px; border: 1px solid #f5c6cb;">
+                            <h3 style="color: #721c24; margin: 0;">{fp}</h3>
+                            <p style="color: #721c24; margin: 0;">False Positives (FP)</p>
+                            <small>False Alarm</small>
+                        </div>
+                        <div style="background-color: #f8d7da; padding: 20px; border-radius: 10px; border: 1px solid #f5c6cb;">
+                            <h3 style="color: #721c24; margin: 0;">{fn}</h3>
+                            <p style="color: #721c24; margin: 0;">False Negatives (FN)</p>
+                            <small>Missed Diagnosis</small>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Plot Heatmap
+                    fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
+                    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax_cm,
+                                xticklabels=['Predicted Healthy', 'Predicted Disease'],
+                                yticklabels=['Actual Healthy', 'Actual Disease'])
+                    ax_cm.set_title('Confusion Matrix Heatmap')
+                    st.pyplot(fig_cm)
+                    
+                    # Disclaimer about subset
+                    st.caption("Metrics calculated on a random subset of 3,000 records from the training dataset.")
+
+                except Exception as e:
+                    st.error(f"Error calculating confusion matrix: {str(e)}")
+                    st.warning("Please check column names and data format.")
+
 
             st.markdown("</div>", unsafe_allow_html=True)
             
