@@ -59,14 +59,19 @@ st.markdown("""
 }
 
 /* Navbar container style */
+/* Navbar container style */
 div[data-testid="stRadio"] > div {
     display: flex;
     justify-content: center;
     width: 100%;
-    background-color: transparent;
-    padding: 0px;
-    box-shadow: none;
-    margin-bottom: 10px;
+    background-color: rgba(255, 255, 255, 0.95); /* White background */
+    backdrop-filter: blur(5px);
+    padding: 10px 20px;
+    border-radius: 25px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+    margin-top: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 div[role="radiogroup"] label {
@@ -950,8 +955,14 @@ elif page == "📈 Model Analysis":
             corr = df.corr()
             
             # Plot
-            fig_corr, ax_corr = plt.subplots(figsize=(8, 6))
-            sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax_corr)
+            # Plot
+            # Reduced figure size for smaller display
+            fig_corr, ax_corr = plt.subplots(figsize=(5, 4))
+            sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax_corr, annot_kws={"size": 5})
+            ax_corr.tick_params(axis='both', which='major', labelsize=5)
+            # Adjust colorbar font size
+            cbar = ax_corr.collections[0].colorbar
+            cbar.ax.tick_params(labelsize=5)
             st.pyplot(fig_corr)
             st.markdown("</div>", unsafe_allow_html=True)
         
@@ -1007,38 +1018,20 @@ elif page == "📈 Model Analysis":
                     cm = confusion_matrix(y_true, y_pred)
                     tn, fp, fn, tp = cm.ravel()
                     
-                    # Display Metrics
-                    st.markdown(f"""
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center; margin-bottom: 20px;">
-                        <div style="background-color: #d4edda; padding: 20px; border-radius: 10px; border: 1px solid #c3e6cb;">
-                            <h3 style="color: #155724; margin: 0;">{tp}</h3>
-                            <p style="color: #155724; margin: 0;">True Positives (TP)</p>
-                            <small>Correctly identified risk</small>
-                        </div>
-                        <div style="background-color: #d4edda; padding: 20px; border-radius: 10px; border: 1px solid #c3e6cb;">
-                            <h3 style="color: #155724; margin: 0;">{tn}</h3>
-                            <p style="color: #155724; margin: 0;">True Negatives (TN)</p>
-                            <small>Correctly identified healthy</small>
-                        </div>
-                        <div style="background-color: #f8d7da; padding: 20px; border-radius: 10px; border: 1px solid #f5c6cb;">
-                            <h3 style="color: #721c24; margin: 0;">{fp}</h3>
-                            <p style="color: #721c24; margin: 0;">False Positives (FP)</p>
-                            <small>False Alarm</small>
-                        </div>
-                        <div style="background-color: #f8d7da; padding: 20px; border-radius: 10px; border: 1px solid #f5c6cb;">
-                            <h3 style="color: #721c24; margin: 0;">{fn}</h3>
-                            <p style="color: #721c24; margin: 0;">False Negatives (FN)</p>
-                            <small>Missed Diagnosis</small>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
                     
                     # Plot Heatmap
-                    fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
+                    # Plot Heatmap
+                    # Reduced figure size as requested to be very small
+                    fig_cm, ax_cm = plt.subplots(figsize=(3, 2))
                     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax_cm,
                                 xticklabels=['Predicted Healthy', 'Predicted Disease'],
-                                yticklabels=['Actual Healthy', 'Actual Disease'])
-                    ax_cm.set_title('Confusion Matrix Heatmap')
+                                yticklabels=['Actual Healthy', 'Actual Disease'],
+                                annot_kws={"size": 6})
+                    ax_cm.set_title('Confusion Matrix', fontsize=7)
+                    ax_cm.tick_params(axis='both', which='major', labelsize=5)
+                    # Adjust colorbar font size
+                    cbar = ax_cm.collections[0].colorbar
+                    cbar.ax.tick_params(labelsize=5)
                     st.pyplot(fig_cm)
                     
                     # Disclaimer about subset
@@ -1117,6 +1110,64 @@ elif page == "ℹ️ About Project":
 </ul>
 </div>
 """, unsafe_allow_html=True)
+    
+    # Data for the table
+    comparison_data = {
+        "Algorithm": [
+            "Random Forest", 
+            "Logistic Regression", 
+            "Naive Bayes", 
+            "SVM", 
+            "Decision Tree"
+        ],
+        "Train Test Split": ["73.51%", "72.85%", "71.07%", "73.36%", "62.96%"],
+        "K-Fold": ["70.24%", "72.94%", "71.22%", "73.47%", "63.99%"],
+        "Hyperparameter Tuning": ["73.53%", "72.83%", "71.07%", "72.6%", "72.8%"]
+    }
+    
+    comparison_df = pd.DataFrame(comparison_data)
+    
+    # Convert to HTML with inline styling for simplicity and robustness
+    table_html = comparison_df.to_html(index=False, border=0, classes=["custom-table"])
+    
+    # Styled Table HTML
+    # We use a dedicated variable with no indentation to avoid Markdown code block interpretation
+    html_code = f"""
+<style>
+.custom-table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}}
+.custom-table th {{
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    padding: 12px;
+    text-align: left;
+    border-bottom: 2px solid #e2e8f0;
+}}
+.custom-table td {{
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+    background-color: white; /* Ensure cells have white background */
+}}
+.custom-table tr:hover {{
+    background-color: #f8fafc;
+}}
+</style>
+
+<div class="card">
+    <h3>🧪 Algorithm Comparison</h3>
+    <p>Accuracy scores across different evaluation methods.</p>
+    <div style="overflow-x: auto; background-color: white; border-radius: 8px;">
+        {table_html}
+    </div>
+</div>
+"""
+    
+    st.markdown(html_code, unsafe_allow_html=True)
     
     st.markdown("""
 <div class="card">
